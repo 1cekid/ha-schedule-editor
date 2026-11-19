@@ -1,1 +1,21 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Schedule Editor",
+        "description": "Zeitpläne mit mindestens einem dieser Labels können von allen Benutzern bearbeitet werden, auch ohne Admin-Rechte.",
+        "data": { "labels": "Labels" }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Schedule Editor",
+        "description": "Zeitpläne mit mindestens einem dieser Labels können von allen Benutzern bearbeitet werden, auch ohne Admin-Rechte.",
+        "data": { "labels": "Labels" }
+      }
+    }
+  }
+}
 
