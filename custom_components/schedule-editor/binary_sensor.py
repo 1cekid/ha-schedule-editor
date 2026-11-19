@@ -65,7 +65,7 @@ async def async_setup_entry(
         data = event.data
         if not data["entity_id"].startswith(f"{SCHEDULE_DOMAIN}."):
             return
-        if data["action"] == "update" and "labels" not in data.get("changes", {}):
+        if data["action"] == "update" and ("labels" not in data.get("changes", {}) and data["entity_id"] not in known):
             return
         hass.async_create_task(_async_reconcile())
 
