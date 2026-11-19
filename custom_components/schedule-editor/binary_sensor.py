@@ -15,6 +15,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import (
     async_track_point_in_time,
     async_track_state_change_event,
+    async_track_state_report_event,
 )
 from homeassistant.util import dt as dt_util
 
@@ -65,8 +66,8 @@ async def async_setup_entry(
         data = event.data
         if not data["entity_id"].startswith(f"{SCHEDULE_DOMAIN}."):
             return
-        #if data["action"] == "update" and ("labels" not in data.get("changes", {}) and data["entity_id"] not in known):
-        #    return
+        if data["action"] == "update" and "labels" not in data.get("changes", {}):
+            return
         hass.async_create_task(_async_reconcile())
 
     entry.async_on_unload(
@@ -127,6 +128,11 @@ class ScheduleMirror(BinarySensorEntity):
     async def async_added_to_hass(self) -> None:
         self.async_on_remove(
             async_track_state_change_event(self.hass, [self._source], self._handle_source_change)
+        )
+        # A config edit rewrites the source state even if state and attributes stay
+        # the same; that only produces a "state reported" event, not a state change.
+        self.async_on_remove(
+            async_track_state_report_event(self.hass, [self._source], self._handle_source_change)
         )
         self.async_on_remove(
             async_dispatcher_connect(self.hass, SIGNAL_CONFIG_CHANGED, self._handle_config_signal)
