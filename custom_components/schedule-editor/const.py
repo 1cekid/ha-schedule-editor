@@ -18,3 +18,11 @@ WEEKDAYS = (
 
 # Key under which the websocket API keeps its registered commands in hass.data.
 WEBSOCKET_DATA_KEY = "websocket_api"
+
+SIGNAL_CONFIG_CHANGED = f"{DOMAIN}_config_changed"
+
+# Day names for the `week` attribute, keyed by language code. English is the fallback.
+WEEKDAY_NAMES: dict[str, tuple[str, ...]] = {
+    "en": ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"),
+    "de": ("Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"),
+}

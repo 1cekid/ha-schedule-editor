@@ -28,6 +28,7 @@ from homeassistant.core import Context, HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 
 from .const import WEBSOCKET_DATA_KEY
+from .week import normalize_config
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -104,4 +105,4 @@ async def async_get_configs(
 ) -> dict[str, dict[str, Any]]:
     """Return all UI-managed schedule configs keyed by storage id."""
     items = await async_call_schedule_command(hass, user, "schedule/list")
-    return {item["id"]: item for item in items or []}
+    return {item["id"]: normalize_config(item) for item in items or []}

@@ -12,9 +12,12 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError, Unauthorized
 from homeassistant.helpers import config_validation as cv, entity_registry as er
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 
-from .const import CONF_LABELS, DOMAIN, SCHEDULE_DOMAIN, SCHEDULE_ID_KEY, WEEKDAYS
+from .const import SCHEDULE_DOMAIN, SCHEDULE_ID_KEY, SIGNAL_CONFIG_CHANGED, WEEKDAYS
+from .editable import editable_entries, enabled_labels
 from .schedule_backend import async_call_schedule_command, async_get_configs
+from .week import normalize_config
 
 # Blocks are validated strictly by the core schedule helper itself; here we
 # only check the shape. `data` is passed through untouched.
@@ -27,32 +30,14 @@ BLOCK_SCHEMA = vol.Schema(
 )
 
 
-def _enabled_labels(hass: HomeAssistant) -> set[str]:
-    entries = hass.config_entries.async_entries(DOMAIN)
-    if not entries:
-        return set()
-    return set(entries[0].options.get(CONF_LABELS, []))
-
-
 def _public(entity_id: str, config: dict[str, Any]) -> dict[str, Any]:
+    config = normalize_config(config)
     return {
         "entity_id": entity_id,
         "name": config["name"],
         "icon": config.get("icon"),
-        **{day: config.get(day, []) for day in WEEKDAYS},
+        **{day: config[day] for day in WEEKDAYS},
     }
-
-
-def _editable_entries(hass: HomeAssistant) -> list[er.RegistryEntry]:
-    """Schedule entities that carry at least one enabled label."""
-    labels = _enabled_labels(hass)
-    registry = er.async_get(hass)
-    found: dict[str, er.RegistryEntry] = {}
-    for label_id in labels:
-        for entry in er.async_entries_for_label(registry, label_id):
-            if entry.domain == SCHEDULE_DOMAIN and entry.unique_id:
-                found[entry.entity_id] = entry
-    return list(found.values())
 
 
 def _can(user: User, entity_id: str, policy: str) -> bool:
@@ -67,7 +52,7 @@ async def ws_list(
     """List the schedules this user may edit, including their weekly blocks."""
     configs = await async_get_configs(hass, connection.user)
     result = []
-    for entry in _editable_entries(hass):
+    for entry in editable_entries(hass):
         config = configs.get(entry.unique_id)  # YAML schedules are not in here
         if config is None or not _can(connection.user, entry.entity_id, POLICY_READ):
             continue
@@ -95,7 +80,7 @@ async def ws_update(
         entry is None
         or entry.domain != SCHEDULE_DOMAIN
         or not entry.unique_id
-        or not (entry.labels & _enabled_labels(hass))
+        or not (entry.labels & enabled_labels(hass))
     ):
         connection.send_error(
             msg["id"], websocket_api.ERR_NOT_FOUND, "Schedule not found or not editable"
@@ -123,6 +108,7 @@ async def ws_update(
     updated = await async_call_schedule_command(
         hass, connection.user, "schedule/update", payload
     )
+    async_dispatcher_send(hass, SIGNAL_CONFIG_CHANGED, entry.unique_id)
     await _async_log_change(hass, connection, msg, entry, updated["name"])
     connection.send_result(msg["id"], _public(entity_id, updated))
 
