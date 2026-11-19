@@ -5,10 +5,10 @@
   "config_flow": true,
   "dependencies": ["websocket_api", "schedule"],
   "after_dependencies": ["logbook"],
-  "documentation": "https://github.com/CHANGE_ME/ha-schedule-editor",
+  "documentation": "https://github.com/1cekid/ha-schedule-editor",
   "integration_type": "service",
   "iot_class": "calculated",
-  "issue_tracker": "https://github.com/CHANGE_ME/ha-schedule-editor/issues",
+  "issue_tracker": "https://github.com/1cekid/ha-schedule-editor/issues",
   "single_config_entry": true,
   "version": "0.1.0"
 }
