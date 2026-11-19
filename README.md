@@ -32,3 +32,32 @@ schedule. Attributes:
   `{start_time, end_time, data, status}`. Times are `HH:MM:SS`; end of day is `24:00:00`.
 
 `week` and `original_entity` are excluded from the recorder.
+
+## Editor panel
+A full-page panel is registered at `/schedule-editor`. It has no sidebar
+entry and is open to non-admin users.
+
+- `/schedule-editor` shows a list of all editable schedules.
+- `/schedule-editor?entity=schedule.heating` opens one schedule directly.
+  On any dashboard card, use the tap action "Navigate" with this path.
+
+Week grid, 30-minute snapping, no overlapping blocks:
+- Mouse: click on empty space adds a 30-minute block, drag adds a longer one.
+  Drag a block to move it (also to another day), drag its top or bottom edge to resize it.
+  Click a block to edit exact times or delete it. Ctrl+Z / Ctrl+Y undo and redo.
+- Touch: every interaction starts with a long press (about 0.4 s), so normal
+  scrolling is untouched. Long press and release on empty space adds a block,
+  long press and drag adds or moves one, long press on an edge resizes, and
+  long press and release on a block opens the edit sheet.
+- Undo/redo covers the current session; nothing is stored until you press Save.
+
+## Frontend sources
+The panel is built from `panel/` and the result is committed to
+`custom_components/schedule_editor/frontend/`, so the integration works without a build step.
+
+```
+cd panel
+npm install
+npm test        # grid logic
+npm run build   # writes custom_components/schedule_editor/frontend/schedule-editor-panel.js
+```
