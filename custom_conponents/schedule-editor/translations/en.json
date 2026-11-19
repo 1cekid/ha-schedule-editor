@@ -1,0 +1,20 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Schedule Editor",
+        "description": "Schedules that carry at least one of these labels can be edited by all users, including non-admins.",
+        "data": { "labels": "Labels" }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Schedule Editor",
+        "description": "Schedules that carry at least one of these labels can be edited by all users, including non-admins.",
+        "data": { "labels": "Labels" }
+      }
+    }
+  }
+}
