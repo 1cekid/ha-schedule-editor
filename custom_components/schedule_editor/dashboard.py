@@ -1,9 +1,10 @@
 """Generated dashboard that hosts the schedule editor.
 
 A dashboard at /schedule-editor is registered without a sidebar entry and is
-open to non-admin users. Its content comes from a frontend strategy: an
-overview plus one subview per editable schedule (/schedule-editor/<object_id>).
-It is in YAML mode, so it cannot be edited in the dashboard editor.
+open to non-admin users. Its views are generated here: an overview plus one
+subview per editable schedule (/schedule-editor/<object_id>). They are real
+views (not a frontend strategy), so the navigation picker lists them. It is in
+YAML mode, so it cannot be edited in the dashboard editor.
 """
 
 from __future__ import annotations
@@ -28,13 +29,66 @@ from .const import (
     DOMAIN,
     FRONTEND_FILE,
     STATIC_URL_PATH,
-    STRATEGY_TYPE,
 )
+from .editable import editable_entries
+from .schedule_backend import ScheduleBackendError, async_get_configs
 
 _LOGGER = logging.getLogger(__name__)
 
 FRONTEND_DIR = Path(__file__).parent / "frontend"
-_CONFIG = {"strategy": {"type": STRATEGY_TYPE}}
+CARD_TYPE = "custom:schedule-editor-card"
+
+_TEXTS = {
+    "en": {
+        "title": "Schedules",
+        "none": "No schedules are enabled for editing. Add one of the labels "
+        "configured in the Schedule Editor integration to a schedule helper.",
+    },
+    "de": {
+        "title": "Zeitpläne",
+        "none": "Es sind keine Zeitpläne zur Bearbeitung freigegeben. Vergib eines der "
+        "in der Integration „Schedule Editor“ eingestellten Labels an einen Zeitplan-Helfer.",
+    },
+}
+
+
+def build_config(schedules: list[dict[str, Any]], language: str) -> dict[str, Any]:
+    """Overview with one tile per schedule, then one subview per schedule.
+
+    `schedules`: [{entity_id, name, icon}], already sorted.
+    """
+    texts = _TEXTS.get(language.split("-")[0], _TEXTS["en"])
+    tiles = []
+    views = []
+    for item in schedules:
+        path = item["entity_id"].split(".", 1)[1]
+        navigate = {"action": "navigate", "navigation_path": f"/{DASHBOARD_URL_PATH}/{path}"}
+        tiles.append(
+            {
+                "type": "tile",
+                "entity": item["entity_id"],
+                "name": item["name"],
+                "tap_action": navigate,
+                "icon_tap_action": navigate,
+            }
+        )
+        views.append(
+            {
+                "title": item["name"],
+                "path": path,
+                "icon": item.get("icon") or DASHBOARD_ICON,
+                "subview": True,
+                "type": "panel",
+                "cards": [{"type": CARD_TYPE, "entity": item["entity_id"]}],
+            }
+        )
+    overview = {
+        "title": texts["title"],
+        "path": "overview",
+        "icon": DASHBOARD_ICON,
+        "cards": tiles or [{"type": "markdown", "content": texts["none"]}],
+    }
+    return {"title": texts["title"], "views": [overview, *views]}
 
 
 class ScheduleEditorDashboard(LovelaceConfig):
@@ -59,13 +113,29 @@ class ScheduleEditorDashboard(LovelaceConfig):
         return MODE_YAML
 
     async def async_get_info(self) -> dict[str, Any]:
-        return {"mode": self.mode}
+        config = await self.async_load(False)
+        return {"mode": self.mode, "views": len(config["views"])}
 
     async def async_load(self, force: bool) -> dict[str, Any]:
-        return _CONFIG
+        try:
+            configs = await async_get_configs(self.hass, None)
+        except ScheduleBackendError as err:
+            _LOGGER.warning("Cannot read schedules: %s", err)
+            configs = {}
+        schedules = [
+            {
+                "entity_id": entry.entity_id,
+                "name": configs[entry.unique_id]["name"],
+                "icon": configs[entry.unique_id].get("icon"),
+            }
+            for entry in editable_entries(self.hass)
+            if entry.unique_id in configs
+        ]
+        schedules.sort(key=lambda item: item["name"].casefold())
+        return build_config(schedules, self.hass.config.language)
 
     async def async_json(self, force: bool) -> json_fragment:
-        return json_fragment(json_bytes(_CONFIG))
+        return json_fragment(json_bytes(await self.async_load(force)))
 
 
 def _file_hash(path: Path) -> str:
@@ -86,8 +156,7 @@ async def async_register_dashboard(hass: HomeAssistant) -> None:
         )
         domain_data["static_registered"] = True
 
-    # Loaded on every page, so the strategy and the card exist before the
-    # dashboard renders. The hash makes browsers pick up a new bundle.
+    # Loaded on every page, so the card exists wherever it is used. The hash makes browsers pick up a new bundle.
     version = await hass.async_add_executor_job(_file_hash, bundle)
     module_url = f"{STATIC_URL_PATH}/{FRONTEND_FILE}?v={version}"
     frontend.add_extra_js_url(hass, module_url)
@@ -125,5 +194,5 @@ def async_unregister_dashboard(hass: HomeAssistant) -> None:
 
 @callback
 def async_dashboard_changed(hass: HomeAssistant) -> None:
-    """Tell open frontends to regenerate the views (the set of schedules changed)."""
+    """Tell open frontends to reload the views (the set of schedules changed)."""
     hass.bus.async_fire(EVENT_LOVELACE_UPDATED, {"url_path": DASHBOARD_URL_PATH})

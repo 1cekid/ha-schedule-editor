@@ -1,9 +1,6 @@
 const EN = {
-  title: "Schedules",
-  none: "No schedules are enabled for editing. Add one of the labels configured in the Schedule Editor integration to a schedule helper.",
   not_found: "This schedule does not exist or is not enabled for editing.",
   loading: "Loading…",
-  back: "Back",
   undo: "Undo",
   redo: "Redo",
   save: "Save",
@@ -28,11 +25,8 @@ const EN = {
 };
 
 const DE = {
-  title: "Zeitpläne",
-  none: "Es sind keine Zeitpläne zur Bearbeitung freigegeben. Vergib eines der in der Integration „Schedule Editor“ eingestellten Labels an einen Zeitplan-Helfer.",
   not_found: "Dieser Zeitplan existiert nicht oder ist nicht zur Bearbeitung freigegeben.",
   loading: "Lädt …",
-  back: "Zurück",
   undo: "Rückgängig",
   redo: "Wiederholen",
   save: "Speichern",
