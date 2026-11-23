@@ -65,6 +65,6 @@ The panel is built from `panel/` and the result is committed to
 ```
 cd panel
 npm install
-npm test        # grid and dashboard logic
+npm test        # grid logic
 npm run build   # writes custom_components/schedule_editor/frontend/schedule-editor.js
 ```

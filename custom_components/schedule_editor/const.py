@@ -21,11 +21,10 @@ WEBSOCKET_DATA_KEY = "websocket_api"
 
 SIGNAL_CONFIG_CHANGED = f"{DOMAIN}_config_changed"
 
-# Frontend: generated dashboard, its strategy and the editor card
+# Frontend: generated dashboard and the editor card
 DASHBOARD_URL_PATH = "schedule-editor"
 DASHBOARD_TITLE = "Schedules"
 DASHBOARD_ICON = "mdi:calendar-clock"
-STRATEGY_TYPE = "custom:schedule-editor"
 FRONTEND_FILE = "schedule-editor.js"
 STATIC_URL_PATH = f"/{DOMAIN}_static"
 
