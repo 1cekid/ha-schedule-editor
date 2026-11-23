@@ -1015,6 +1015,17 @@ export class ScheduleEditorCard extends LitElement {
   `;
 }
 
-if (!customElements.get("schedule-editor-card")) {
-  customElements.define("schedule-editor-card", ScheduleEditorCard);
+const TAG = "schedule-editor-card";
+const register = () => {
+  if (!customElements.get(TAG)) customElements.define(TAG, ScheduleEditorCard);
+};
+
+// Home Assistant loads this module in parallel with its own code, which then
+// replaces window.customElements (scoped registry polyfill). A definition made
+// before that is invisible to Lovelace ("Configuration error"), so wait until
+// Home Assistant's own root element is defined.
+if (document.querySelector("home-assistant")) {
+  customElements.whenDefined("home-assistant").then(register);
+} else {
+  register();
 }
