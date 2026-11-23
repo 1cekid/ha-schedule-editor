@@ -20,6 +20,7 @@ from homeassistant.helpers.event import (
 from homeassistant.util import dt as dt_util
 
 from .const import SCHEDULE_DOMAIN, SIGNAL_CONFIG_CHANGED
+from .dashboard import async_dashboard_changed
 from .editable import editable_entries
 from .schedule_backend import ScheduleBackendError, async_get_configs
 from .week import build_week, next_boundary, weekday_names
@@ -41,6 +42,7 @@ async def async_setup_entry(
             _LOGGER.warning("Cannot read schedules: %s", err)
             return
 
+        before = set(known)
         wanted = {
             source.unique_id: source
             for source in editable_entries(hass)
@@ -60,6 +62,8 @@ async def async_setup_entry(
         known.update(mirror.unique_id for mirror in new)
         if new:
             async_add_entities(new)
+        if known != before:
+            async_dashboard_changed(hass)
 
     @callback
     def _on_registry_update(event: Event) -> None:

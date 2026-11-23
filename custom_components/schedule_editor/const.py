@@ -21,10 +21,12 @@ WEBSOCKET_DATA_KEY = "websocket_api"
 
 SIGNAL_CONFIG_CHANGED = f"{DOMAIN}_config_changed"
 
-# Frontend panel
-PANEL_URL_PATH = "schedule-editor"
-PANEL_ELEMENT = "schedule-editor-panel"
-PANEL_FILE = "schedule-editor-panel.js"
+# Frontend: generated dashboard, its strategy and the editor card
+DASHBOARD_URL_PATH = "schedule-editor"
+DASHBOARD_TITLE = "Schedules"
+DASHBOARD_ICON = "mdi:calendar-clock"
+STRATEGY_TYPE = "custom:schedule-editor"
+FRONTEND_FILE = "schedule-editor.js"
 STATIC_URL_PATH = f"/{DOMAIN}_static"
 
 # Day names for the `week` attribute, keyed by language code. English is the fallback.

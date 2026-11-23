@@ -9,7 +9,7 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 
 from .const import DOMAIN
-from .panel import async_register_panel, async_unregister_panel
+from .dashboard import async_register_dashboard, async_unregister_dashboard
 from .websocket import async_register_websocket_commands
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
@@ -23,9 +23,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up the editor panel and mirror sensors; changing the labels reloads the entry."""
-    await async_register_panel(hass)
-    entry.async_on_unload(lambda: async_unregister_panel(hass))
+    """Set up the editor dashboard and mirror sensors; changing the labels reloads the entry."""
+    await async_register_dashboard(hass)
+    entry.async_on_unload(lambda: async_unregister_dashboard(hass))
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
     return True

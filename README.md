@@ -33,13 +33,19 @@ schedule. Attributes:
 
 `week` and `original_entity` are excluded from the recorder.
 
-## Editor panel
-A full-page panel is registered at `/schedule-editor`. It has no sidebar
-entry and is open to non-admin users.
+## Editor dashboard
+The integration adds a dashboard at `/schedule-editor`. It has no sidebar
+entry, is open to non-admin users and is generated automatically, so it
+cannot be edited in the dashboard editor.
 
-- `/schedule-editor` shows a list of all editable schedules.
-- `/schedule-editor?entity=schedule.heating` opens one schedule directly.
-  On any dashboard card, use the tap action "Navigate" with this path.
+- `/schedule-editor` shows a tile for every editable schedule.
+- `/schedule-editor/<object_id>` opens one schedule, e.g.
+  `/schedule-editor/heating` for `schedule.heating`. On any dashboard card,
+  use the tap action "Navigate" with this path.
+
+Views appear and disappear on their own when the label of a schedule changes.
+The editor is also available as a card for your own dashboards:
+`type: custom:schedule-editor-card` with `entity: schedule.heating`.
 
 Week grid, 30-minute snapping, no overlapping blocks:
 - Mouse: click on empty space adds a 30-minute block, drag adds a longer one.
@@ -50,6 +56,7 @@ Week grid, 30-minute snapping, no overlapping blocks:
   long press and drag adds or moves one, long press on an edge resizes, and
   long press and release on a block opens the edit sheet.
 - Undo/redo covers the current session; nothing is stored until you press Save.
+  Unsaved changes survive leaving the view (until the page is reloaded).
 
 ## Frontend sources
 The panel is built from `panel/` and the result is committed to
@@ -58,6 +65,6 @@ The panel is built from `panel/` and the result is committed to
 ```
 cd panel
 npm install
-npm test        # grid logic
-npm run build   # writes custom_components/schedule_editor/frontend/schedule-editor-panel.js
+npm test        # grid and dashboard logic
+npm run build   # writes custom_components/schedule_editor/frontend/schedule-editor.js
 ```

@@ -1,8 +1,7 @@
 const EN = {
-  title: "Schedule Editor",
+  title: "Schedules",
   none: "No schedules are enabled for editing. Add one of the labels configured in the Schedule Editor integration to a schedule helper.",
   not_found: "This schedule does not exist or is not enabled for editing.",
-  choose: "Choose a schedule",
   loading: "Loading…",
   back: "Back",
   undo: "Undo",
@@ -22,16 +21,16 @@ const EN = {
   err_order: "The end must be after the start.",
   err_overlap: "The block overlaps another block.",
   err_invalid: "Please enter valid times.",
+  discard: "Discard changes",
   discard_confirm: "Discard unsaved changes?",
   save_failed: "Saving failed",
   load_failed: "Could not load schedules",
 };
 
 const DE = {
-  title: "Zeitplan-Editor",
+  title: "Zeitpläne",
   none: "Es sind keine Zeitpläne zur Bearbeitung freigegeben. Vergib eines der in der Integration „Schedule Editor“ eingestellten Labels an einen Zeitplan-Helfer.",
   not_found: "Dieser Zeitplan existiert nicht oder ist nicht zur Bearbeitung freigegeben.",
-  choose: "Zeitplan auswählen",
   loading: "Lädt …",
   back: "Zurück",
   undo: "Rückgängig",
@@ -51,6 +50,7 @@ const DE = {
   err_order: "Das Ende muss nach dem Beginn liegen.",
   err_overlap: "Der Block überschneidet sich mit einem anderen Block.",
   err_invalid: "Bitte gültige Zeiten eingeben.",
+  discard: "Änderungen verwerfen",
   discard_confirm: "Ungespeicherte Änderungen verwerfen?",
   save_failed: "Speichern fehlgeschlagen",
   load_failed: "Zeitpläne konnten nicht geladen werden",
