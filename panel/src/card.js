@@ -4,14 +4,12 @@ import { DragGesture } from "@use-gesture/vanilla";
 import * as G from "./grid.js";
 import { translations } from "./i18n.js";
 
-const PANEL_PATH = "/schedule-editor";
-
 const MOVE_TOLERANCE = 5; // px a press may move and still count as a tap
 const HOLD_MS = 400; // touch: how long to hold before a gesture starts
 const EDGE_PX = 9; // resize zone at the block edges (mouse)
 const EDGE_PX_TOUCH = 16; // same for touch
 const SLOT_PX = 28; // height of 30 minutes (mouse)
-const SLOT_PX_TOUCH = 32; // same for touch
+const SLOT_PX_TOUCH = 24; // same for touch
 const AUTOSCROLL_ZONE = 56;
 const AUTOSCROLL_MAX = 18; // px per frame
 const GUTTER_PX = 48;
@@ -20,13 +18,16 @@ const MAX_HISTORY = 100;
 const hasIcon = () => !!customElements.get("ha-icon");
 const localeOf = (hass) => hass?.locale?.language || hass?.language || "en";
 
-class ScheduleEditorPanel extends LitElement {
+// Unsaved edits per schedule. Leaving the view (e.g. with the back arrow)
+// cannot be intercepted, so edits are kept here and restored on return.
+const drafts = new Map();
+
+/** Week editor for one schedule. Config: `{ type: "custom:schedule-editor-card", entity }`. */
+export class ScheduleEditorCard extends LitElement {
   static properties = {
-    narrow: { type: Boolean },
     _status: { state: true },
     _error: { state: true },
-    _schedules: { state: true },
-    _entityId: { state: true },
+    _name: { state: true },
     _days: { state: true },
     _savedJson: { state: true },
     _history: { state: true },
@@ -39,13 +40,13 @@ class ScheduleEditorPanel extends LitElement {
 
   constructor() {
     super();
-    this.narrow = false;
+    this._config = null;
     this._hass = undefined;
     this._locale = "en";
     this._lang = "en";
     this._status = "loading"; // loading | ready | error
     this._error = "";
-    this._schedules = null;
+    this._name = "";
     this._entityId = null;
     this._days = null;
     this._savedJson = "";
@@ -74,7 +75,6 @@ class ScheduleEditorPanel extends LitElement {
       if (this._gridEl) this._press = this._point(e.clientX, e.clientY);
     };
 
-    this._onLocation = () => this._applyRoute();
     this._onKey = (e) => this._handleKey(e);
     this._onBeforeUnload = (e) => {
       if (this._dirty) {
@@ -94,7 +94,7 @@ class ScheduleEditorPanel extends LitElement {
     this._hass = value;
     this._locale = locale;
     this._lang = locale.split("-")[0];
-    if (first && this.isConnected) this._load();
+    if (first && this.isConnected && this._config) this._load();
     else if (changed) this.requestUpdate();
   }
 
@@ -102,21 +102,34 @@ class ScheduleEditorPanel extends LitElement {
     return this._hass;
   }
 
+  setConfig(config) {
+    if (!config?.entity) throw new Error("entity is required");
+    const changed = config.entity !== this._config?.entity;
+    this._config = config;
+    if (changed && this._hass && this.isConnected) this._load();
+  }
+
+  getCardSize() {
+    return 12;
+  }
+
+  getGridOptions() {
+    return { columns: "full", rows: "auto" };
+  }
+
   connectedCallback() {
     super.connectedCallback();
-    window.addEventListener("location-changed", this._onLocation);
-    window.addEventListener("popstate", this._onLocation);
     window.addEventListener("keydown", this._onKey);
     window.addEventListener("beforeunload", this._onBeforeUnload);
-    if (this._hass && !this._loadStarted) this._load();
+    if (this._hass && this._config && !this._loadStarted) this._load();
+    else if (this._days) this._scrolled = false;
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    window.removeEventListener("location-changed", this._onLocation);
-    window.removeEventListener("popstate", this._onLocation);
     window.removeEventListener("keydown", this._onKey);
     window.removeEventListener("beforeunload", this._onBeforeUnload);
+    this._storeDraft();
     cancelAnimationFrame(this._raf);
     this._gesture?.destroy();
     this._gesture = null;
@@ -138,52 +151,57 @@ class ScheduleEditorPanel extends LitElement {
     return !!this._days && JSON.stringify(G.toPayload(this._days)) !== this._savedJson;
   }
 
-  get _scheduleName() {
-    return this._schedules?.find((s) => s.entity_id === this._entityId)?.name ?? "";
-  }
-
   async _load() {
     this._loadStarted = true;
     this._status = "loading";
+    const entityId = this._config.entity;
     try {
-      this._schedules = await this._hass.callWS({ type: "schedule_editor/list" });
+      const schedules = await this._hass.callWS({ type: "schedule_editor/list" });
+      if (entityId !== this._config.entity) return; // config changed meanwhile
+      const item = schedules.find((s) => s.entity_id === entityId);
       this._status = "ready";
       this._error = "";
-      this._applyRoute(true);
+      this._entityId = entityId;
+      this._name = item?.name ?? "";
+      this._days = item ? G.fromList(item) : null;
+      this._savedJson = this._days ? JSON.stringify(G.toPayload(this._days)) : "";
+      this._history = [];
+      this._future = [];
+      this._sheet = null;
+      this._ghost = null;
+      this._scrolled = false;
+      this._restoreDraft();
     } catch (err) {
       this._status = "error";
       this._error = `${this._t.load_failed}: ${err?.message || err}`;
     }
   }
 
-  _applyRoute(force = false) {
-    if (!this._schedules || !window.location.pathname.startsWith(PANEL_PATH)) return;
-    const wanted = new URLSearchParams(window.location.search).get("entity");
-    if (!force && wanted === this._entityId) return;
-    const item = wanted ? this._schedules.find((s) => s.entity_id === wanted) : null;
-    this._entityId = wanted;
-    this._days = item ? G.fromList(item) : null;
-    this._savedJson = this._days ? JSON.stringify(G.toPayload(this._days)) : "";
-    this._history = [];
-    this._future = [];
-    this._sheet = null;
-    this._ghost = null;
-    this._scrolled = false;
+  _storeDraft() {
+    if (!this._entityId) return;
+    if (this._dirty) {
+      drafts.set(this._entityId, {
+        days: this._days,
+        savedJson: this._savedJson,
+        history: this._history,
+        future: this._future,
+      });
+    } else drafts.delete(this._entityId);
   }
 
-  _navigate(path) {
-    window.history.pushState(null, "", path);
-    window.dispatchEvent(new CustomEvent("location-changed"));
+  // Only if the schedule was not changed elsewhere since the draft was made.
+  _restoreDraft() {
+    const draft = drafts.get(this._entityId);
+    drafts.delete(this._entityId);
+    if (!draft || !this._days || draft.savedJson !== this._savedJson) return;
+    this._days = draft.days;
+    this._history = draft.history;
+    this._future = draft.future;
   }
 
-  _select(entityId) {
-    this._navigate(`${PANEL_PATH}?entity=${encodeURIComponent(entityId)}`);
-  }
-
-  _back() {
-    if (this._dirty && !window.confirm(this._t.discard_confirm)) return;
-    if (window.history.length > 1) window.history.back();
-    else this._navigate(PANEL_PATH);
+  _discard() {
+    if (!window.confirm(this._t.discard_confirm)) return;
+    this._load();
   }
 
   // ---------------------------------------------------- edits and history ----
@@ -504,17 +522,12 @@ class ScheduleEditorPanel extends LitElement {
       body = html`<p class="notice error">${this._error}</p>`;
     } else if (this._days) {
       body = this._renderEditor();
-    } else if (this._entityId) {
-      body = html`<div class="notice">
-        <p>${t.not_found}</p>
-        <button class="row" @click=${() => this._navigate(PANEL_PATH)}>${t.choose}</button>
-      </div>`;
     } else {
-      body = this._renderPicker();
+      body = html`<p class="notice">${t.not_found}</p>`;
     }
 
-    return html`<div class="page">
-      ${this._renderBar()}
+    return html`<ha-card class="page">
+      ${this._days ? this._renderBar() : nothing}
       ${this._error && this._status === "ready"
         ? html`<div class="banner">
             <span>${this._error}</span>
@@ -523,56 +536,40 @@ class ScheduleEditorPanel extends LitElement {
         : nothing}
       ${body} ${this._sheet ? this._renderSheet() : nothing}
       ${this._toast ? html`<div class="toast">${this._toast}</div>` : nothing}
-    </div>`;
+    </ha-card>`;
   }
 
   _renderBar() {
     const t = this._t;
-    const editing = !!this._days;
+    const dirty = this._dirty;
     return html`<header class="bar">
-      ${editing
-        ? this._btn({ icon: "mdi:arrow-left", label: t.back, onClick: this._back, iconOnly: true, glyph: "←" })
-        : customElements.get("ha-menu-button")
-          ? html`<ha-menu-button .hass=${this._hass} .narrow=${this.narrow}></ha-menu-button>`
-          : nothing}
       <div class="title">
-        <span>${editing ? this._scheduleName : t.title}</span>
-        ${editing && this._dirty ? html`<span class="dot" title=${t.unsaved}></span>` : nothing}
+        ${dirty
+          ? html`<span class="dot"></span><span>${t.unsaved}</span>`
+          : html`<span>${this._name}</span>`}
       </div>
-      ${editing
-        ? html`
-            ${this._btn({ icon: "mdi:undo", label: t.undo, onClick: this._undo, disabled: !this._history.length })}
-            ${this._btn({ icon: "mdi:redo", label: t.redo, onClick: this._redo, disabled: !this._future.length })}
-            ${this._btn({
-              icon: "mdi:content-save",
-              label: this._saving ? t.saving : t.save,
-              onClick: this._save,
-              disabled: !this._dirty || this._saving,
-              primary: true,
-            })}
-          `
+      ${dirty
+        ? this._btn({ icon: "mdi:close", label: t.discard, onClick: this._discard, iconOnly: true, glyph: "×" })
         : nothing}
+      ${this._btn({ icon: "mdi:undo", label: t.undo, onClick: this._undo, disabled: !this._history.length, iconOnly: true, glyph: "↶" })}
+      ${this._btn({ icon: "mdi:redo", label: t.redo, onClick: this._redo, disabled: !this._future.length, iconOnly: true, glyph: "↷" })}
+      ${this._btn({
+        icon: "mdi:content-save",
+        label: this._saving ? t.saving : t.save,
+        onClick: this._save,
+        disabled: !dirty || this._saving,
+        primary: true,
+      })}
     </header>`;
-  }
-
-  _renderPicker() {
-    const t = this._t;
-    if (!this._schedules.length) return html`<p class="notice">${t.none}</p>`;
-    return html`<div class="picker">
-      ${this._schedules.map(
-        (s) => html`<button class="row" @click=${() => this._select(s.entity_id)}>
-          ${hasIcon() ? html`<ha-icon icon=${s.icon || "mdi:calendar-clock"}></ha-icon>` : nothing}
-          <span>${s.name}</span>
-        </button>`
-      )}
-    </div>`;
   }
 
   _renderEditor() {
     const slotH = this._slotH;
-    const wide = !this.narrow;
     const today = (new Date().getDay() + 6) % 7;
-    const names = [0, 1, 2, 3, 4, 5, 6].map((i) => this._dayName(i, wide ? "long" : "short"));
+    const names = [0, 1, 2, 3, 4, 5, 6].map(
+      (i) => html`<span class="long">${this._dayName(i, "long")}</span
+        ><span class="short">${this._dayName(i, "short")}</span>`
+    );
     return html`<div class="scroller" style="--slot-h:${slotH}px; --gutter:${GUTTER_PX}px">
       <div class="head">
         <div></div>
@@ -652,9 +649,10 @@ class ScheduleEditorPanel extends LitElement {
   static styles = css`
     :host {
       display: block;
-      height: 100vh;
-      height: 100dvh;
-      background: var(--primary-background-color);
+      /* fill the view below the dashboard header */
+      height: calc(100vh - var(--header-height, 56px) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+      height: calc(100dvh - var(--header-height, 56px) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+      min-height: 320px;
       color: var(--primary-text-color);
       font-family: var(--paper-font-body1_-_font-family, Roboto, Noto, sans-serif);
       -webkit-tap-highlight-color: transparent;
@@ -665,6 +663,7 @@ class ScheduleEditorPanel extends LitElement {
       height: 100%;
       min-height: 0;
       position: relative;
+      overflow: hidden;
     }
 
     /* top bar */
@@ -673,11 +672,10 @@ class ScheduleEditorPanel extends LitElement {
       display: flex;
       align-items: center;
       gap: 4px;
-      height: 56px;
+      height: 52px;
       padding: 0 8px;
       box-sizing: border-box;
-      background: var(--app-header-background-color, var(--primary-color));
-      color: var(--app-header-text-color, var(--text-primary-color, #fff));
+      border-bottom: 1px solid var(--divider-color);
     }
     .title {
       flex: 1;
@@ -686,9 +684,10 @@ class ScheduleEditorPanel extends LitElement {
       align-items: center;
       gap: 8px;
       padding: 0 8px;
-      font-size: 20px;
+      font-size: 16px;
+      font-weight: 500;
     }
-    .title span:first-child {
+    .title span:last-child {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -715,15 +714,15 @@ class ScheduleEditorPanel extends LitElement {
       cursor: pointer;
     }
     .btn:hover:not([disabled]) {
-      background: rgba(255, 255, 255, 0.18);
+      background: color-mix(in srgb, var(--primary-text-color) 10%, transparent);
     }
     .btn[disabled] {
       opacity: 0.4;
       cursor: default;
     }
     .btn.primary {
-      background: var(--app-header-text-color, var(--text-primary-color, #fff));
-      color: var(--app-header-background-color, var(--primary-color));
+      background: var(--primary-color);
+      color: var(--text-primary-color, #fff);
     }
     .btn .optional {
       display: none;
@@ -761,36 +760,6 @@ class ScheduleEditorPanel extends LitElement {
       color: var(--error-color, #db4437);
     }
 
-    /* picker */
-    .picker {
-      width: 100%;
-      max-width: 560px;
-      margin: 16px auto;
-      padding: 0 16px;
-      box-sizing: border-box;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      overflow-y: auto;
-    }
-    .row {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 14px 16px;
-      border: 1px solid var(--divider-color);
-      border-radius: 12px;
-      background: var(--card-background-color);
-      color: inherit;
-      font: inherit;
-      font-size: 16px;
-      text-align: left;
-      cursor: pointer;
-    }
-    .row:hover {
-      border-color: var(--primary-color);
-    }
-
     /* week grid */
     .scroller {
       flex: 1;
@@ -818,6 +787,17 @@ class ScheduleEditorPanel extends LitElement {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+    .dayname .long {
+      display: none;
+    }
+    @media (min-width: 700px) {
+      .dayname .long {
+        display: inline;
+      }
+      .dayname .short {
+        display: none;
+      }
     }
     .dayname.today {
       color: var(--primary-color);
@@ -1035,6 +1015,6 @@ class ScheduleEditorPanel extends LitElement {
   `;
 }
 
-if (!customElements.get("schedule-editor-panel")) {
-  customElements.define("schedule-editor-panel", ScheduleEditorPanel);
+if (!customElements.get("schedule-editor-card")) {
+  customElements.define("schedule-editor-card", ScheduleEditorCard);
 }

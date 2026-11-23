@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Frontend panel for the Schedule Editor Home Assistant integration",
+  "description": "Frontend (dashboard strategy and editor card) for the Schedule Editor Home Assistant integration",
   "scripts": {
-    "build": "esbuild src/panel.js --bundle --minify --format=esm --target=es2021 --legal-comments=none --outfile=../custom_components/schedule_editor/frontend/schedule-editor-panel.js",
+    "build": "esbuild src/index.js --bundle --minify --format=esm --target=es2021 --legal-comments=none --outfile=../custom_components/schedule_editor/frontend/schedule-editor.js",
     "test": "node --test"
   },
   "dependencies": {
