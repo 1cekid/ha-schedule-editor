@@ -27,7 +27,6 @@ export class ScheduleEditorCard extends LitElement {
   static properties = {
     _status: { state: true },
     _error: { state: true },
-    _name: { state: true },
     _days: { state: true },
     _savedJson: { state: true },
     _history: { state: true },
@@ -46,7 +45,6 @@ export class ScheduleEditorCard extends LitElement {
     this._lang = "en";
     this._status = "loading"; // loading | ready | error
     this._error = "";
-    this._name = "";
     this._entityId = null;
     this._days = null;
     this._savedJson = "";
@@ -162,7 +160,6 @@ export class ScheduleEditorCard extends LitElement {
       this._status = "ready";
       this._error = "";
       this._entityId = entityId;
-      this._name = item?.name ?? "";
       this._days = item ? G.fromList(item) : null;
       this._savedJson = this._days ? JSON.stringify(G.toPayload(this._days)) : "";
       this._history = [];
@@ -544,9 +541,7 @@ export class ScheduleEditorCard extends LitElement {
     const dirty = this._dirty;
     return html`<header class="bar">
       <div class="title">
-        ${dirty
-          ? html`<span class="dot"></span><span>${t.unsaved}</span>`
-          : html`<span>${this._name}</span>`}
+        ${dirty ? html`<span class="dot"></span><span>${t.unsaved}</span>` : nothing}
       </div>
       ${dirty
         ? this._btn({ icon: "mdi:close", label: t.discard, onClick: this._discard, iconOnly: true, glyph: "×" })
